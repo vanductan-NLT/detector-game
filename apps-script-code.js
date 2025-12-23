@@ -73,13 +73,21 @@ function doPost(e) {
         const gameState = JSON.parse(e.postData.contents);
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
 
-        // Xóa các row cũ của game này trước
+        // XÓA TẤT CẢ ROWS CŨ CỦA GAME NÀY TRƯỚC
         const data = sheet.getDataRange().getValues();
+        const rowsToDelete = [];
+
+        // Tìm tất cả rows cần xóa (lưu index)
         for (let i = data.length - 1; i >= 1; i--) {
             if (data[i][0] === gameState.gameId) {
-                sheet.deleteRow(i + 1);
+                rowsToDelete.push(i + 1); // +1 vì sheet index bắt đầu từ 1
             }
         }
+
+        // Xóa từ dưới lên để index không bị thay đổi
+        rowsToDelete.forEach(rowIndex => {
+            sheet.deleteRow(rowIndex);
+        });
 
         const allKeywords = `${gameState.config.civilianKeyword} / ${gameState.config.spyKeyword}`;
 

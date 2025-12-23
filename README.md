@@ -20,56 +20,77 @@ Game tìm gián điệp online hỗ trợ multi-player với Google Sheets làm 
 
 ## 🚀 Quick Start
 
-### Chạy Local
-
-**Prerequisites:** Node.js 18+
+### 1. Cài Đặt
 
 ```bash
-# 1. Cài dependencies
+# Clone repo
+git clone https://github.com/vanductan/detector-game.git
+cd detector-game
+
+# Cài dependencies
 npm install
 
-# 2. Chạy dev server
+# Chạy dev server
 npm run dev
 
-# 3. Mở browser
-# → http://localhost:5173
+# Mở browser → http://localhost:5173
 ```
 
-### Setup Google Sheets (Khuyên dùng)
+### 2. Setup Google Sheets (Khuyên dùng)
 
-👉 **Xem hướng dẫn chi tiết**: [GOOGLE_SHEETS_SETUP.md](GOOGLE_SHEETS_SETUP.md)
-
-**Cấu trúc mới - Đơn giản hơn**:
-- 🎯 **Mỗi người chơi = 1 dòng** trong Sheet
-- 📝 **5 cột plain text**: gameId, playerName, role, keyword, allKeywords
-- ❌ **Không JSON** - Dễ đọc, dễ filter!
-
-**Setup nhanh:**
-1. Tạo Google Sheet với 5 cột (xem [GOOGLE_SHEET_STRUCTURE.md](GOOGLE_SHEET_STRUCTURE.md))
-2. Tạo Google Apps Script (code trong [apps-script-code.js](apps-script-code.js))
-3. **Setup .env file**:
-   ```bash
-   # Copy file mẫu
-   cp .env.example .env
-   
-   # Mở .env và paste URL từ Google Apps Script
-   # VITE_CLOUD_SYNC_URL=https://script.google.com/macros/s/.../exec
+#### Bước 1: Tạo Google Sheet
+1. Vào [Google Sheets](https://sheets.google.com)
+2. Tạo Sheet mới
+3. Tạo header row với 6 cột:
    ```
-4. Done! URL sẽ tự động load khi tạo game 🎉
+   gameId | playerName | role | keyword | allKeywords | config
+   ```
 
-> **💡 Tip**: Nếu dùng `.env`, không cần paste URL mỗi lần tạo game nữa!
+#### Bước 2: Tạo Apps Script
+1. Trong Sheet: **Extensions** → **Apps Script**
+2. Copy code từ file `apps-script-code.js`
+3. Paste vào Apps Script Editor
+4. **Save** (Ctrl+S)
 
-## 📦 Deploy
+#### Bước 3: Deploy Apps Script
+1. Click **Deploy** → **New deployment**
+2. Type: **Web app**
+3. **Execute as**: Me
+4. **Who has access**: Anyone
+5. Click **Deploy**
+6. **Copy URL** được tạo ra
 
-👉 **Xem hướng dẫn deploy**: [DEPLOY.md](DEPLOY.md)
-
-**Nhanh nhất:**
+#### Bước 4: Setup .env
 ```bash
-# GitHub Pages
-npm run deploy:ghpages
+# Copy file mẫu
+cp .env.example .env
 
-# Hoặc Vercel
+# Mở .env và paste URL vừa copy
+# VITE_CLOUD_SYNC_URL=https://script.google.com/macros/s/.../exec
+```
+
+#### Bước 5: Test
+- Reload browser
+- Tạo game mới  
+- Check Google Sheet → Có data chưa?
+
+## 📦 Deploy Production
+
+### Vercel (Khuyên dùng)
+```bash
+npm install -g vercel
 vercel --prod
+```
+
+### GitHub Pages
+```bash
+npm run deploy:ghpages
+```
+
+### Netlify
+```bash
+npm run build
+# Kéo thả folder 'dist' vào netlify.com/drop
 ```
 
 ## 🎮 Cách Chơi
@@ -91,20 +112,25 @@ vercel --prod
 - **Build Tool**: Vite 6
 - **Routing**: React Router v7
 - **Database**: Google Sheets + Apps Script
-- **Styling**: Pure CSS (Tailwind-like utilities)
+- **Styling**: Pure CSS (Tailwind utilities)
 
-## 📊 Project Structure
+## 📊 Cấu Trúc Google Sheet
 
+### 6 Cột (Header Row):
 ```
-detector-game/
-├── components/
-│   ├── AdminPanel.tsx      # Tạo và quản lý game
-│   └── PlayerView.tsx      # Giao diện người chơi
-├── App.tsx                 # Main app + routing
-├── types.ts                # TypeScript definitions
-├── GOOGLE_SHEETS_SETUP.md  # Hướng dẫn setup cloud
-└── DEPLOY.md               # Hướng dẫn deploy
+gameId | playerName | role | keyword | allKeywords | config
 ```
+
+### Ví Dụ Data:
+| gameId | playerName | role | keyword | allKeywords | config |
+|--------|------------|------|---------|-------------|--------|
+| abc123 | __CONFIG__ |  |  | Táo / Cam | {"civilianKeyword":"Táo",...} |
+| abc123 | Tân | Dân | Táo | Táo / Cam |  |
+| abc123 | An | Gián điệp | Cam | Táo / Cam |  |
+
+**Giải thích**:
+- Row đầu tiên (playerName = `__CONFIG__`): Lưu config game
+- Các rows sau: Mỗi row = 1 người chơi
 
 ## 🔧 Scripts
 
@@ -127,12 +153,17 @@ npm run deploy:ghpages   # Deploy lên GitHub Pages
 ### Game không sync?
 - Kiểm tra Cloud URL đã đúng chưa
 - Xem Console (F12) có lỗi không
-- Check Google Apps Script logs
+- Check Google Apps Script logs (Executions tab)
 
 ### Không deploy được?
 - Chạy `npm run build` test trước
 - Xem logs của platform (Vercel/Netlify)
 - Đảm bảo `package.json` đúng version
+
+### Apps Script không hoạt động?
+- Check deployment có **Anyone** access
+- Xem Executions tab có lỗi không  
+- Test URL với browser trước
 
 ## 📝 License
 

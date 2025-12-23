@@ -14,6 +14,7 @@ const PlayerView: React.FC<PlayerViewProps> = ({ gameState, onUpdate }) => {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isViewing, setIsViewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const savedPlayer = sessionStorage.getItem(`spy_player_${gameId}`);
@@ -26,6 +27,7 @@ const PlayerView: React.FC<PlayerViewProps> = ({ gameState, onUpdate }) => {
     if (!gameState && gameId) {
       const cloudUrl = import.meta.env.VITE_CLOUD_SYNC_URL;
       if (cloudUrl) {
+        setIsLoading(true);
         console.log('🔄 Game not found locally, loading from Google Sheets...');
         fetch(`${cloudUrl}?gameId=${gameId}`)
           .then(res => {
@@ -33,14 +35,17 @@ const PlayerView: React.FC<PlayerViewProps> = ({ gameState, onUpdate }) => {
             return res.json();
           })
           .then(data => {
+            setIsLoading(false);
             if (data && !data.error && data.gameId) {
               console.log('✅ Loaded game from cloud:', data);
               onUpdate(data);
             } else {
               console.warn('⚠️ Invalid data from cloud:', data);
+              setError('Game không tồn tại!');
             }
           })
           .catch(err => {
+            setIsLoading(false);
             console.error('❌ Cloud load error:', err);
             setError('Không thể tải game từ cloud. Vui lòng thử lại!');
           });
