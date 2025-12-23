@@ -24,7 +24,7 @@ const App: React.FC = () => {
       try {
         const response = await fetch(`${gameState.config.cloudUrl}?gameId=${gameState.gameId}`);
         const cloudData = await response.json();
-        
+
         if (cloudData && JSON.stringify(cloudData) !== JSON.stringify(gameState)) {
           // Chỉ cập nhật nếu dữ liệu cloud mới hơn hoặc khác (để tránh loop)
           setGameState(cloudData);
@@ -36,23 +36,32 @@ const App: React.FC = () => {
     }, 3000); // Kiểm tra mỗi 3 giây
 
     return () => clearInterval(interval);
-  }, [gameState?.config.cloudUrl, gameState?.gameId, gameState?.status]);
+  }, [gameState?.config?.cloudUrl, gameState?.gameId, gameState?.status]);
 
   const updateGameState = useCallback(async (newState: GameState | null) => {
     setGameState(newState);
     if (newState) {
       localStorage.setItem('spy_game_state', JSON.stringify(newState));
-      
-      // Push to Cloud if configured
+
+      // Push to Google Sheets if configured
       if (newState.config.cloudUrl) {
         try {
+          console.log('📤 Syncing to Google Sheets...', {
+            gameId: newState.gameId,
+            players: newState.players.length,
+            url: newState.config.cloudUrl
+          });
+
           await fetch(newState.config.cloudUrl, {
             method: 'POST',
             body: JSON.stringify(newState),
-            mode: 'no-cors' // Google Script requires this for simple POST
+            mode: 'no-cors' // Google Script requires this
           });
+
+          console.log('✅ Synced successfully! Check your Google Sheet.');
+          console.log(`📊 Format: Each player = 1 row | ${newState.players.length} rows added`);
         } catch (err) {
-          console.error("Cloud Push Error:", err);
+          console.error("❌ Cloud Sync Error:", err);
         }
       }
     } else {
@@ -85,17 +94,17 @@ const App: React.FC = () => {
 
         <main className="max-w-4xl mx-auto px-4">
           <Routes>
-            <Route 
-              path="/admin" 
-              element={<AdminPanel gameState={gameState} onUpdate={updateGameState} />} 
+            <Route
+              path="/admin"
+              element={<AdminPanel gameState={gameState} onUpdate={updateGameState} />}
             />
-            <Route 
-              path="/play/:gameId" 
-              element={<PlayerView gameState={gameState} onUpdate={updateGameState} />} 
+            <Route
+              path="/play/:gameId"
+              element={<PlayerView gameState={gameState} onUpdate={updateGameState} />}
             />
-            <Route 
-              path="*" 
-              element={<Navigate to="/admin" replace />} 
+            <Route
+              path="*"
+              element={<Navigate to="/admin" replace />}
             />
           </Routes>
         </main>
