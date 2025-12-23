@@ -8,11 +8,27 @@ import { GameState } from './types';
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
 
-  // Load from LocalStorage on mount
+  // Load from Cloud on mount if navigating to a specific game
   useEffect(() => {
-    const savedGame = localStorage.getItem('spy_game_state');
-    if (savedGame) {
-      setGameState(JSON.parse(savedGame));
+    // 1. Kiểm tra URL xem có đang access game nào không
+    const hash = window.location.hash; // e.g., "#/play/abc123"
+    const match = hash.match(/\/play\/([a-zA-Z0-9]+)/);
+
+    if (match && match[1]) {
+      const gameId = match[1];
+      const cloudUrl = import.meta.env.VITE_CLOUD_SYNC_URL;
+
+      if (cloudUrl) {
+        console.log("☁️ Attempting to restore game from Cloud:", gameId);
+        fetch(`${cloudUrl}?gameId=${gameId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && !data.error) {
+              setGameState(data);
+            }
+          })
+          .catch(err => console.error("Restore failed:", err));
+      }
     }
   }, []);
 
@@ -25,10 +41,14 @@ const App: React.FC = () => {
         const response = await fetch(`${gameState.config.cloudUrl}?gameId=${gameState.gameId}`);
         const cloudData = await response.json();
 
-        if (cloudData && JSON.stringify(cloudData) !== JSON.stringify(gameState)) {
-          // Chỉ cập nhật nếu dữ liệu cloud mới hơn hoặc khác (để tránh loop)
-          setGameState(cloudData);
-          localStorage.setItem('spy_game_state', JSON.stringify(cloudData));
+        // Check deep equality appropriately ideally, but here simple check
+        if (cloudData && !cloudData.error && cloudData.status !== 'ENDED') {
+          // Basic diff check to prevent renders if not needed
+          if (JSON.stringify(cloudData) !== JSON.stringify(gameState)) {
+            setGameState(cloudData);
+          }
+        } else if (cloudData && cloudData.status === 'ENDED') {
+          setGameState(prev => prev ? { ...prev, status: 'ENDED' } : null);
         }
       } catch (err) {
         console.error("Cloud Sync Error:", err);
@@ -41,7 +61,7 @@ const App: React.FC = () => {
   const updateGameState = useCallback(async (newState: GameState | null) => {
     setGameState(newState);
     if (newState) {
-      localStorage.setItem('spy_game_state', JSON.stringify(newState));
+      // localStorage removal -> Cloud Only
 
       // Push to Google Sheets if configured
       if (newState.config.cloudUrl) {
@@ -65,7 +85,7 @@ const App: React.FC = () => {
         }
       }
     } else {
-      localStorage.removeItem('spy_game_state');
+      // Game ended/reset - no localStorage action needed
     }
   }, []);
 

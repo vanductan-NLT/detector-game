@@ -67,8 +67,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
         }
       }
 
-      // 2. Clear Local
-      localStorage.removeItem('spy_game_state');
+      // 2. Clear State
+      // localStorage.removeItem('spy_game_state'); // Removed as we use cloud mainly
       onUpdate(null);
     }
   };
