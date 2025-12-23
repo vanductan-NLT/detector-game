@@ -122,6 +122,34 @@ const PlayerView: React.FC<PlayerViewProps> = ({ gameState, onUpdate }) => {
     setIsViewing(false);
   };
 
+  if (isLoading) {
+    return (
+      <div className="bg-white p-12 rounded-[40px] shadow-2xl border-4 border-blue-50 text-center animate-in zoom-in duration-300">
+        <div className="text-8xl mb-8 animate-spin">⏳</div>
+        <h2 className="text-3xl font-black text-gray-900 mb-4">Đang tải game...</h2>
+        <p className="text-gray-500 font-bold text-lg">Vui lòng đợi trong giây lát</p>
+      </div>
+    );
+  }
+
+  if (gameState && gameState.status === 'ENDED') {
+    return (
+      <div className="bg-white p-12 rounded-[40px] shadow-2xl border-4 border-gray-200 text-center animate-in zoom-in duration-300">
+        <div className="text-8xl mb-8">🏁</div>
+        <h2 className="text-3xl font-black text-gray-900 mb-4">Ván Chơi Đã Kết Thúc</h2>
+        <p className="text-gray-500 font-bold text-lg mb-8 leading-relaxed">
+          Admin đã hủy hoặc kết thúc ván này.
+        </p>
+        <button
+          onClick={() => window.location.href = '#/'}
+          className="bg-gray-800 text-white px-10 py-4 rounded-2xl font-black text-xl shadow-xl hover:bg-black transition-all"
+        >
+          Về Trang Chủ
+        </button>
+      </div>
+    );
+  }
+
   if (!gameState || gameState.gameId !== gameId) {
     return (
       <div className="bg-white p-12 rounded-[40px] shadow-2xl border-4 border-red-50 text-center animate-in zoom-in duration-300">

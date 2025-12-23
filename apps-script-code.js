@@ -1,126 +1,173 @@
 // ========================================
-// 🎮 GOOGLE APPS SCRIPT - PLAYER-BASED VERSION v2
-// ========================================
-// Cấu trúc Sheet: gameId | playerName | role | keyword | allKeywords | config
-// Mỗi row = 1 người chơi
-// Row đầu tiên của mỗi game lưu config (playerName = "__CONFIG__")
+// 🎮 GOOGLE APPS SCRIPT - DUAL SHEET VERSION
 // ========================================
 
-const SHEET_NAME = "Sheet1"; // ⚠️ Đổi nếu sheet của bạn có tên khác
+const SHEET_GAMES = "Games";     // Tab lưu trạng thái game
+const SHEET_PLAYERS = "Players"; // Tab lưu danh sách người chơi
 
-// ========================================
-// GET: Lấy danh sách người chơi theo gameId
-// ========================================
 function doGet(e) {
     const gameId = e.parameter.gameId;
+    const action = e.parameter.action; // 'check_status' or 'get_game'
 
-    if (!gameId) {
-        return ContentService.createTextOutput(JSON.stringify({
-            error: "Missing gameId parameter"
-        })).setMimeType(ContentService.MimeType.JSON);
-    }
+    if (!gameId) return errorResponse("Missing gameId");
 
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Tìm tất cả người chơi của game này
-    const players = [];
+    // 1. Kiểm tra trạng thái Game trong Sheet 'Games'
+    const gameSheet = ss.getSheetByName(SHEET_GAMES);
+    if (!gameSheet) return errorResponse("Sheet 'Games' not found");
+
+    const gameData = gameSheet.getDataRange().getValues();
+    let gameRow = null;
     let config = null;
-    let allKeywords = "";
 
-    for (let i = 1; i < data.length; i++) {
-        if (data[i][0] === gameId) {
-            // Row đầu tiên là config
-            if (data[i][1] === "__CONFIG__") {
-                config = JSON.parse(data[i][5] || '{}');
-                allKeywords = data[i][4];
-            } else {
-                // Rows sau là players
-                players.push({
-                    id: data[i][1] + "-" + i,  // Unique ID
-                    name: data[i][1],
-                    role: data[i][2],
-                    keyword: data[i][3] === "null" ? null : data[i][3],
-                    hasViewed: data[i][2] !== "",  // Nếu có role = đã viewed
-                    joinedAt: Date.now()
-                });
-            }
+    // Tìm game (bỏ qua header)
+    for (let i = 1; i < gameData.length; i++) {
+        if (gameData[i][0] === gameId) {
+            gameRow = {
+                gameId: gameData[i][0],
+                status: gameData[i][1],
+                config: JSON.parse(gameData[i][2] || '{}'),
+            };
+            break;
         }
     }
 
-    if (!config) {
-        return ContentService.createTextOutput(JSON.stringify({
-            error: "Game not found"
-        })).setMimeType(ContentService.MimeType.JSON);
+    // Nếu không tìm thấy game hoặc Game đã ENDED/CANCELED
+    if (!gameRow) return errorResponse("Game not found");
+
+    // Nếu chỉ check status (nhẹ hơn)
+    if (action === 'check_status') {
+        return successResponse({ status: gameRow.status });
     }
 
-    const gameState = {
-        gameId: gameId,
-        config: config,
-        players: players,
-        status: "PLAYING"
-    };
+    // Nếu game đã kết thúc, trả về status để client xử lý
+    if (gameRow.status === 'ENDED') {
+        return successResponse({
+            gameId: gameId,
+            status: 'ENDED',
+            players: []
+        });
+    }
 
-    return ContentService.createTextOutput(JSON.stringify(gameState))
-        .setMimeType(ContentService.MimeType.JSON);
+    // 2. Lấy danh sách Player từ Sheet 'Players'
+    const playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+    if (!playerSheet) return errorResponse("Sheet 'Players' not found");
+
+    const playerData = playerSheet.getDataRange().getValues();
+    const players = [];
+
+    for (let i = 1; i < playerData.length; i++) {
+        if (playerData[i][0] === gameId) {
+            players.push({
+                id: `p-${i}`, // Tạo ID tạm
+                name: playerData[i][1],
+                role: playerData[i][2],
+                keyword: playerData[i][3] === "null" ? null : playerData[i][3],
+                hasViewed: true, // Mặc định là true nếu load từ sheet
+                joinedAt: playerData[i][4]
+            });
+        }
+    }
+
+    return successResponse({
+        gameId: gameId,
+        status: gameRow.status,
+        config: gameRow.config,
+        players: players
+    });
 }
 
-// ========================================
-// POST: Lưu người chơi mới
-// ========================================
 function doPost(e) {
+    const lock = LockService.getScriptLock();
+    // Wait for up to 10 seconds for other processes to finish.
+    if (!lock.tryLock(10000)) {
+        return errorResponse("Server busy, try again.");
+    }
+
     try {
         const gameState = JSON.parse(e.postData.contents);
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-        // XÓA TẤT CẢ ROWS CŨ CỦA GAME NÀY TRƯỚC
-        const data = sheet.getDataRange().getValues();
-        const rowsToDelete = [];
+        // --- XỬ LÝ SHEET "Games" ---
+        let gameSheet = ss.getSheetByName(SHEET_GAMES);
+        if (!gameSheet) { // Auto create if missing
+            gameSheet = ss.insertSheet(SHEET_GAMES);
+            gameSheet.appendRow(["gameId", "status", "config", "createdAt"]);
+        }
 
-        // Tìm tất cả rows cần xóa (lưu index)
-        for (let i = data.length - 1; i >= 1; i--) {
-            if (data[i][0] === gameState.gameId) {
-                rowsToDelete.push(i + 1); // +1 vì sheet index bắt đầu từ 1
+        const gameData = gameSheet.getDataRange().getValues();
+        let gameIndex = -1;
+
+        // Tìm xem game đã tồn tại chưa
+        for (let i = 1; i < gameData.length; i++) {
+            if (gameData[i][0] === gameState.gameId) {
+                gameIndex = i + 1; // Row index (1-based)
+                break;
             }
         }
 
-        // Xóa từ dưới lên để index không bị thay đổi
-        rowsToDelete.forEach(rowIndex => {
-            sheet.deleteRow(rowIndex);
-        });
+        const configJson = JSON.stringify(gameState.config);
+        const timestamp = new Date().toISOString();
 
-        const allKeywords = `${gameState.config.civilianKeyword} / ${gameState.config.spyKeyword}`;
+        if (gameIndex > 0) {
+            // Update existing game
+            // Nếu gameState gửi lên là null hoặc status ENDED -> Update status
+            // Ở client logic: Nếu admin reset, gửi status="ENDED"
+            gameSheet.getRange(gameIndex, 2).setValue(gameState.status); // Update Status
+            gameSheet.getRange(gameIndex, 3).setValue(configJson);       // Update Config
+        } else {
+            // Create new game
+            gameSheet.appendRow([gameState.gameId, gameState.status, configJson, timestamp]);
+        }
 
-        // Row đầu tiên: Lưu config
-        sheet.appendRow([
-            gameState.gameId,
-            "__CONFIG__",
-            "",
-            "",
-            allKeywords,
-            JSON.stringify(gameState.config)
-        ]);
+        // --- XỬ LÝ SHEET "Players" ---
+        // Chỉ update players nếu game đang PLAYING
+        if (gameState.status === 'PLAYING') {
+            let playerSheet = ss.getSheetByName(SHEET_PLAYERS);
+            if (!playerSheet) {
+                playerSheet = ss.insertSheet(SHEET_PLAYERS);
+                playerSheet.appendRow(["gameId", "playerName", "role", "keyword", "joinedAt"]);
+            }
 
-        // Các rows tiếp theo: Lưu players
-        gameState.players.forEach(player => {
-            sheet.appendRow([
-                gameState.gameId,           // Column A: gameId
-                player.name,                 // Column B: playerName
-                player.role,                 // Column C: role
-                player.keyword || "null",    // Column D: keyword
-                allKeywords,                 // Column E: allKeywords
-                ""                           // Column F: config (empty for players)
-            ]);
-        });
+            // Xóa players cũ của game này (để tránh duplicate)
+            // Cách tối ưu: Filter data trong memory và viết lại (nhanh hơn delete từng dòng cho sheet lớn)
+            // Nhưng với game nhỏ, xóa dòng loop ngược là OK.
+            const pData = playerSheet.getDataRange().getValues();
+            // Gom các rows cần xóa
+            for (let i = pData.length - 1; i >= 1; i--) {
+                if (pData[i][0] === gameState.gameId) {
+                    playerSheet.deleteRow(i + 1);
+                }
+            }
 
-        return ContentService.createTextOutput(JSON.stringify({
-            success: true,
-            message: `Saved config + ${gameState.players.length} players for gameId: ${gameState.gameId}`
-        })).setMimeType(ContentService.MimeType.JSON);
+            // Thêm players mới
+            if (gameState.players && gameState.players.length > 0) {
+                const newRows = gameState.players.map(p => [
+                    gameState.gameId,
+                    p.name,
+                    p.role,
+                    p.keyword || "null",
+                    timestamp
+                ]);
+                // Write batch
+                playerSheet.getRange(playerSheet.getLastRow() + 1, 1, newRows.length, 5).setValues(newRows);
+            }
+        }
 
-    } catch (error) {
-        return ContentService.createTextOutput(JSON.stringify({
-            error: error.toString()
-        })).setMimeType(ContentService.MimeType.JSON);
+        return successResponse({ success: true });
+
+    } catch (err) {
+        return errorResponse(err.toString());
+    } finally {
+        lock.releaseLock();
     }
+}
+
+function successResponse(data) {
+    return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function errorResponse(msg) {
+    return ContentService.createTextOutput(JSON.stringify({ error: msg })).setMimeType(ContentService.MimeType.JSON);
 }

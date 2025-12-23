@@ -47,14 +47,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
     onUpdate(newState);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (confirm('Bạn có chắc chắn muốn xóa ván chơi hiện tại?')) {
-      // Clear localStorage
-      localStorage.removeItem('spy_game_state');
-      // Also clear from Google Sheets if needed
-      if (gameState?.config.cloudUrl) {
-        console.log('🗑️ Game canceled - data in Google Sheets will remain for history');
+      // 1. Notify Cloud if connected
+      if (gameState && gameState.config.cloudUrl) {
+        try {
+          console.log('🚫 Sending ENDED signal to cloud...');
+          await fetch(gameState.config.cloudUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+              ...gameState,
+              status: 'ENDED',
+              players: [] // Clear players on cloud logic handled by backend usually, but sending empty helps
+            }),
+            mode: 'no-cors'
+          });
+        } catch (e) {
+          console.error("Failed to cancel on cloud", e);
+        }
       }
+
+      // 2. Clear Local
+      localStorage.removeItem('spy_game_state');
       onUpdate(null);
     }
   };
@@ -192,25 +206,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
           </div>
           <div>
             <label className={labelClasses}>Số Gián điệp 🕵️</label>
-            <input
-              type="number"
-              min="1"
-              max="5"
+            <select
               className={inputClasses}
               value={config.spyCount}
               onChange={(e) => setConfig({ ...config, spyCount: Number(e.target.value) })}
-            />
+            >
+              <option value={1}>1 người</option>
+              <option value={2}>2 người</option>
+            </select>
           </div>
           <div>
             <label className={labelClasses}>Số Mũ Trắng 🎩</label>
-            <input
-              type="number"
-              min="0"
-              max="3"
+            <select
               className={inputClasses}
               value={config.whiteHatCount}
               onChange={(e) => setConfig({ ...config, whiteHatCount: Number(e.target.value) })}
-            />
+            >
+              <option value={0}>0 người</option>
+              <option value={1}>1 người</option>
+              <option value={2}>2 người</option>
+            </select>
           </div>
         </div>
 
