@@ -11,8 +11,9 @@ const App: React.FC = () => {
   // Load from Cloud on mount if navigating to a specific game
   useEffect(() => {
     // 1. Kiểm tra URL xem có đang access game nào không
-    const hash = window.location.hash; // e.g., "#/play/abc123"
-    const match = hash.match(/\/play\/([a-zA-Z0-9]+)/);
+    const hash = window.location.hash; // e.g., "#/play/abc123" or "#/admin/abc123"
+    // Match either /play/ or /admin/ followed by the game ID
+    const match = hash.match(/\/(?:play|admin)\/([a-zA-Z0-9]+)/);
 
     if (match && match[1]) {
       const gameId = match[1];
@@ -24,6 +25,9 @@ const App: React.FC = () => {
           .then(res => res.json())
           .then(data => {
             if (data && !data.error) {
+              setGameState(data);
+            } else if (data && data.status === 'ENDED') {
+              // Handle ended state explicitly if needed, or just set it
               setGameState(data);
             }
           })
@@ -116,6 +120,10 @@ const App: React.FC = () => {
           <Routes>
             <Route
               path="/admin"
+              element={<AdminPanel gameState={gameState} onUpdate={updateGameState} />}
+            />
+            <Route
+              path="/admin/:gameId"
               element={<AdminPanel gameState={gameState} onUpdate={updateGameState} />}
             />
             <Route

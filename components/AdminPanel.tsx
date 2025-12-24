@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { GameState, GameConfig, Role, Player } from '../types';
 
 interface AdminPanelProps {
@@ -19,6 +20,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
     whiteHatCount: 0,
     cloudUrl: defaultCloudUrl,
   });
+
+  const navigate = useNavigate();
 
   const handleStartGame = () => {
     if (!config.civilianKeyword || !config.spyKeyword) {
@@ -45,6 +48,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
     };
 
     onUpdate(newState);
+    navigate(`/admin/${gameId}`);
   };
 
   const handleReset = async () => {
@@ -86,6 +90,40 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ gameState, onUpdate }) => {
 
   const inputClasses = "w-full p-4 bg-white border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all duration-200 text-gray-900 placeholder-gray-400 font-bold text-lg shadow-sm";
   const labelClasses = "block text-sm font-black text-indigo-900 mb-2 ml-1 uppercase tracking-wider";
+
+  const { gameId } = useParams();
+
+  // Show loading while restoring state from URL
+  if (gameId && !gameState) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl shadow-xl border-2 border-indigo-50">
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-500 font-bold animate-pulse">Đang đồng bộ dữ liệu...</p>
+      </div>
+    );
+  }
+
+  if (gameState && gameState.status === 'ENDED') {
+    return (
+      <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-red-50 text-center animate-in fade-in zoom-in duration-300">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <span className="text-4xl">🏁</span>
+        </div>
+        <h2 className="text-3xl font-black text-gray-900 mb-4">Ván game đã kết thúc</h2>
+        <p className="text-gray-500 mb-8 font-medium">Bạn có thể bắt đầu một ván chơi mới ngay bây giờ.</p>
+
+        <button
+          onClick={() => {
+            onUpdate(null);
+            navigate('/admin');
+          }}
+          className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+        >
+          Tạo Game Mới
+        </button>
+      </div>
+    );
+  }
 
   if (gameState && gameState.status === 'PLAYING') {
     return (
