@@ -10,13 +10,13 @@ const App: React.FC = () => {
 
   // Load from Cloud on mount if navigating to a specific game
   useEffect(() => {
-    // 1. Kiểm tra URL xem có đang access game nào không
-    const hash = window.location.hash; // e.g., "#/play/abc123" or "#/admin/abc123"
-    // Match either /play/ or /admin/ followed by the game ID
-    const match = hash.match(/\/(?:play|admin)\/([a-zA-Z0-9]+)/);
+    // 1. Kiểm tra URL xem có đang access game nào không (play OR admin)
+    const hash = window.location.hash; // e.g., "#/play/abc123"
+    // Match /play/:id OR /admin/:id
+    const match = hash.match(/\/(play|admin)\/([a-zA-Z0-9]+)/);
 
-    if (match && match[1]) {
-      const gameId = match[1];
+    if (match && match[2]) {
+      const gameId = match[2];
       const cloudUrl = import.meta.env.VITE_CLOUD_SYNC_URL;
 
       if (cloudUrl) {
@@ -25,9 +25,6 @@ const App: React.FC = () => {
           .then(res => res.json())
           .then(data => {
             if (data && !data.error) {
-              setGameState(data);
-            } else if (data && data.status === 'ENDED') {
-              // Handle ended state explicitly if needed, or just set it
               setGameState(data);
             }
           })
@@ -65,6 +62,11 @@ const App: React.FC = () => {
   const updateGameState = useCallback(async (newState: GameState | null) => {
     setGameState(newState);
     if (newState) {
+      // Navigate admin to the game specific URL if they created it
+      if (window.location.hash.includes('admin')) {
+        window.location.hash = `#/admin/${newState.gameId}`;
+      }
+
       // localStorage removal -> Cloud Only
 
       // Push to Google Sheets if configured
@@ -89,7 +91,10 @@ const App: React.FC = () => {
         }
       }
     } else {
-      // Game ended/reset - no localStorage action needed
+      // Game ended/reset - clear URL to prevent auto-restore of ended game
+      if (window.location.hash.includes('admin')) {
+        window.location.hash = '#/admin';
+      }
     }
   }, []);
 
